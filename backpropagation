@@ -1,0 +1,116 @@
+import random as rd
+import math
+
+#Initialize our neural network's weights for any number of hidden layers and neurons
+def initialize_weights(n_inputs, n_neur_hiddenlay, n_hidden_layer, n_outputs): #n_neur_hidden is a list where n_neur_hidden[0] corresponds to number of neurons in the first hidden layer
+	neural_network=[]
+	for k in range(n_hidden_layer):
+		if k==0:
+			a = math.sqrt(6/(n_inputs+n_neur_hiddenlay[k]))
+			hidden_layer = [{'weights':[rd.uniform(-a,a) for i in range(n_inputs + 1)]} for i in range(n_neur_hiddenlay[k])]
+			neural_network.append(hidden_layer)
+		else :
+			a = math.sqrt(6/(n_neur_hiddenlay[k-1]+n_neur_hiddenlay[k]))
+			hidden_layer = [{'weights':[rd.uniform(-a,a) for i in range(n_neur_hiddenlay[k-1] + 1)]} for i in range(n_neur_hiddenlay[k])]
+			neural_network.append(hidden_layer)
+	b = math.sqrt(6/(n_neur_hiddenlay[-1]+n_outputs))
+	output_layer = [{'weights':[rd.uniform(-b,b) for i in range(n_neur_hiddenlay[-1] + 1)]} for i in range(n_outputs)]
+	neural_network.append(output_layer)
+	return neural_network
+  
+def net_input(w, x):
+	net_in = 0 #don't forget to add 1 at beginning of every input
+	for i in range(len(w)):
+		net_in += w[i] * x[i]
+	return net_in
+  
+# Forward pass through the network to obtain the output
+def forward_pass(neural_network, data_point): #works for any number of layers
+	input = data_point
+	for layer in neural_network: 
+		next_input = [1] #we should have a one in the beginning for the bias
+		for neuron in layer:
+			neuron['output'] = 1 / (1 + math.exp(-net_input(neuron['weights'], input))) #using sigmoid function
+			#if neuron['output']>=0.75:
+			#	neuron['output']=1
+			#elif neuron['output']<=0.25:
+			#	neuron['output']=0
+			next_input.append(neuron['output'])
+		input = next_input
+	input.pop(0) #we remove the 1 that is going to be in the first index to return the final output
+	output = input
+	return output
+
+# Derivative of activation function
+def derivative_sigmoid(x):
+  return x * (1 - x)
+  
+#Calculating the deltas of the outputs and hidden layers
+def deltas(neural_network, y) : #works for any number of hidden layers or neurons
+  
+  for j in range(len(neural_network[-1])) : #delta of the output
+    neuron = neural_network[-1][j]
+    neuron['delta'] = (y[j] - neuron['output'])*derivative_sigmoid(neuron['output'])
+
+  for k in reversed(range(len(neural_network[:-1]))) : #delta of next layers
+    delta_hiddlayer=[]
+    layer = neural_network[k]
+    for j in range(len(layer)) :
+      error = 0
+      for m in range(len(neural_network[k+1])):
+        neuron=neural_network[k+1][m]
+        error += neuron['weights'][j+1]*neuron['delta'] #j+1 because we do not include the bias which has index 0
+      delta_hiddlayer.append(error)
+    for j in range(len(layer)) :
+      layer[j]['delta'] = delta_hiddlayer[j] * derivative_sigmoid(layer[j]['output'])
+
+def weights_update(neural_network, data_point, learning_rate):
+  delta_w=[]
+  for i in range(len(neural_network)):
+    input = data_point
+    if i != 0:
+      input = [neuron['output'] for neuron in neural_network[i - 1]]
+    for neuron in neural_network[i]:
+      for j in range(len(input)):
+        neuron['weights'][j] =  neuron['weights'][j] + learning_rate * neuron['delta'] * input[j] #updates the bias too because every input in the network has a 1 in the beginning
+      
+def train_network(neural_network, X_train, y_train, learning_rate, N_epoch) :
+  count_tenth=0
+  tenth_list=[]
+  balanced_accuracies=[]
+  error=[]#will contained 1-balanced accuracy for every epoch
+  count_quit =0
+  for epoch in range(N_epoch) :
+    if count_quit ==10 :
+      break
+    count_bal_accuracy =0
+    sum_error = 0
+    randomlist = []
+    for t in range(0,500):
+      n = rd.randint(0, len(X_train)-1) #stochastic gradient descent
+      randomlist.append(n)
+    for i in randomlist :      
+      outputs = forward_pass(neural_network, X_train[i])
+      imax = outputs.index(max(outputs))
+      output_temp=[]
+      for j in range(len(outputs)):
+        output_temp.append(0)
+      output_temp[imax]=1
+      if output_temp==y_train[i] :
+        count_bal_accuracy+=1
+      sum_error += (1/2*(sum([(y_train[i][j]-outputs[j])**2 for j in range(len(outputs))])))
+      deltas(neural_network, y_train[i])
+      #if outputs != y_train[i] :#if the error is equal to 0 then don't make any change
+      weights_update(neural_network, X_train[i], learning_rate) 
+    count_tenth+=1
+    bal_acc = count_bal_accuracy/500    
+    print('epoch: ' + str(epoch) + ' error= ' + str(sum_error) + ' learning rate= '+ str(learning_rate)  )  
+    if count_tenth == 10:
+      print('Balanced accuracy = ' + str(bal_acc))
+      balanced_accuracies.append(bal_acc)
+      error.append(1-bal_acc)
+      tenth_list.append(epoch)
+      count_tenth=0
+    if sum_error <=30 :
+      count_quit+=1
+  return error, tenth_list
